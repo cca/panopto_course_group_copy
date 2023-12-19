@@ -16,14 +16,6 @@ config = {
 if len(sys.argv) > 1:
     config["ROOT_FOLDER"] = sys.argv[1]
 
-# https://support.panopto.com/resource/APIDocumentation/Help/html/72ac03ca-cade-f191-64cc-31357b038800.htm
-roles = {
-    "Creator": 0,
-    "Viewer": 1,
-    "ViewerWithLink": 2,
-    "Publisher": 3,
-}
-
 
 # initialize a logger, use config LOGLEVEL if set, otherwise INFO
 logger = logging.getLogger(__name__)
@@ -74,6 +66,8 @@ logger.debug(root_folder)
 
 
 def create_group(group):
+    # note: cannot create two internal groups with the same name
+    # which will be a good sanity check for this script
     group = UserManagement.service.CreateInternalGroup(
         auth=AuthenticationInfo,
         groupName=group["Name"],
@@ -107,16 +101,14 @@ def copy_group(group_id, folder_id, role):
                 }
             )
             # add internal group to course folder
-            # ! this returns a server error, my guess is the role enum is wrong
+            # roles are strings: Creator, Viewer, ViewerWithLink, Publisher
             AccessManagement.service.GrantGroupAccessToFolder(
                 auth=AuthenticationInfo,
                 folderId=folder_id,
                 groupId=internal_group["Id"],
-                role=roles[role],
+                role=role,
             )
             logger.info(f"Added group {group['Name']} to course folder")
-            # ! remove this line once above is fixed
-            exit()
 
 
 def copy_folder_groups(folder_id):
