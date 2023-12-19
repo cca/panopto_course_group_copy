@@ -16,6 +16,15 @@ config = {
 if len(sys.argv) > 1:
     config["ROOT_FOLDER"] = sys.argv[1]
 
+# https://support.panopto.com/resource/APIDocumentation/Help/html/72ac03ca-cade-f191-64cc-31357b038800.htm
+roles = {
+    "Creator": 0,
+    "Viewer": 1,
+    "ViewerWithLink": 2,
+    "Publisher": 3,
+}
+
+
 # initialize a logger, use config LOGLEVEL if set, otherwise INFO
 logger = logging.getLogger(__name__)
 logger.setLevel(config.get("LOGLEVEL", "INFO"))
@@ -64,7 +73,18 @@ logger.info(
 logger.debug(root_folder)
 
 
-def copy_group(group_id):
+def create_group(group):
+    group = UserManagement.service.CreateInternalGroup(
+        auth=AuthenticationInfo,
+        groupName=group["Name"],
+        memberIds={"guid": group["MemberIds"]},
+    )
+    logger.info(f"Created group {group['Name']}")
+    logger.debug(group)
+    return group
+
+
+def copy_group(group_id, folder_id, role):
     # this does not have the group members but has other data
     group = UserManagement.service.GetGroup(auth=AuthenticationInfo, groupId=group_id)
     logger.info(f"Got group {group['Name']}")
@@ -73,13 +93,30 @@ def copy_group(group_id):
     # MembershipProviderName = moodle-production & GroupType = External
     # TODO provider name should be another config option
     if group["MembershipProviderName"] == "moodle-production":
-        # get group members, this is an actual list not {"guid": []}
+        # get group members, this is eitehr None or actual list not {"guid": []}
         group_members = UserManagement.service.GetUsersInGroup(
             auth=AuthenticationInfo, groupId=group_id
         )
-        logger.info(f"Got {len(group_members)} members of {group['Name']}")
-        logger.debug(group_members)
-        exit()
+        if group_members:
+            logger.info(f"Got {len(group_members)} members of {group['Name']}")
+            logger.debug(group_members)
+            internal_group = create_group(
+                {
+                    "Name": group["Name"],
+                    "MemberIds": group_members,
+                }
+            )
+            # add internal group to course folder
+            # ! this returns a server error, my guess is the role enum is wrong
+            AccessManagement.service.GrantGroupAccessToFolder(
+                auth=AuthenticationInfo,
+                folderId=folder_id,
+                groupId=internal_group["Id"],
+                role=roles[role],
+            )
+            logger.info(f"Added group {group['Name']} to course folder")
+            # ! remove this line once above is fixed
+            exit()
 
 
 def copy_folder_groups(folder_id):
@@ -91,11 +128,11 @@ def copy_folder_groups(folder_id):
 
     if access_details["GroupsWithCreatorAccess"]:
         for group_id in access_details["GroupsWithCreatorAccess"]["guid"]:
-            copy_group(group_id)
+            copy_group(group_id, folder_id, "Creator")
 
     if access_details["GroupsWithViewerAccess"]:
         for group_id in access_details["GroupsWithViewerAccess"]["guid"]:
-            copy_group(group_id)
+            copy_group(group_id, folder_id, "Viewer")
 
 
 for folder_id in root_folder["ChildFolders"]["guid"]:
