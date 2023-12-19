@@ -32,3 +32,7 @@ pipenv run python app.py ROOT_FOLDER_ID
 ```
 
 This iterates over all the grandchild course folders and copies their creator and access groups to internal groups.
+
+## LICENSE
+
+[ECL Version 2.0](https://opensource.org/licenses/ECL-2.0)
