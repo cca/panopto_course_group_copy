@@ -1,3 +1,4 @@
+import argparse
 import hashlib
 import logging
 import os
@@ -13,9 +14,6 @@ config = {
     **dotenv_values(".env"),
     **os.environ,  # override loaded values with environment variables
 }
-if len(sys.argv) > 1:
-    config["ROOT_FOLDER"] = sys.argv[1]
-
 
 # initialize a logger, use config LOGLEVEL if set, otherwise INFO
 logger = logging.getLogger(__name__)
@@ -35,6 +33,8 @@ def generateauthcode(userkey, servername, sharedSecret):
     return authcode
 
 
+# TODO doing all this initialization here makes running just the argparse
+# TODO --help take a long time, maybe move it into main()?
 # initialize SOAP clients
 AccessManagement = Client(
     f'https://{config["HOST"]}/Panopto/PublicAPI/4.6/AccessManagement.svc?wsdl'
@@ -55,19 +55,15 @@ AuthenticationInfo = {
     "UserKey": f"{config['IDP']}\\{config['USERNAME']}",
 }
 
-root_folder = SessionManagement.service.GetFoldersById(
-    auth=AuthenticationInfo,
-    folderIds=[config["ROOT_FOLDER"]],
-)[0]
-logger.info(
-    f"Got root folder {root_folder['Name']}, number of children: {len(root_folder['ChildFolders']['guid'])}"
-)
-logger.debug(root_folder)
-
 
 def create_group(group):
     # note: cannot create two internal groups with the same name
     # which will be a good sanity check for this script
+    if args.dry_run:
+        logger.info(
+            f"Would create group {group['Name']} with members {group['MemberIds']}"
+        )
+        return group
     group = UserManagement.service.CreateInternalGroup(
         auth=AuthenticationInfo,
         groupName=group["Name"],
@@ -100,18 +96,24 @@ def copy_group(group_id, folder_id, role):
                     "MemberIds": group_members,
                 }
             )
+
             # add internal group to course folder
-            # roles are strings: Creator, Viewer, ViewerWithLink, Publisher
+            if args.dry_run:
+                logger.info(
+                    f"Would add group {group['Name']} to course folder with role {role}"
+                )
+                return
             AccessManagement.service.GrantGroupAccessToFolder(
                 auth=AuthenticationInfo,
                 folderId=folder_id,
                 groupId=internal_group["Id"],
+                # roles are strings: Creator, Viewer, ViewerWithLink, Publisher
                 role=role,
             )
             logger.info(f"Added group {group['Name']} to course folder")
 
 
-def copy_folder_groups(folder_id):
+def course_folder(folder_id):
     access_details = AccessManagement.service.GetFolderAccessDetails(
         auth=AuthenticationInfo, folderId=folder_id
     )
@@ -127,23 +129,68 @@ def copy_folder_groups(folder_id):
             copy_group(group_id, folder_id, "Viewer")
 
 
-for folder_id in root_folder["ChildFolders"]["guid"]:
-    # GetFoldersById takes a list of folder IDs but seems to just error out if you
-    # ask for too many (>53?) instead of paging, great job Panopto
-    # departmental folders, none of these will have groups
-    department_folder = SessionManagement.service.GetFoldersById(
+def dept_folder(folder_id):
+    # GetFoldersById takes a list of folder IDs so you would think we could
+    # pass a list of ids to process all departments at once but the method
+    # errors if you ask for too many (>53?), great job Panopto
+    folder = SessionManagement.service.GetFoldersById(
         auth=AuthenticationInfo, folderIds=[folder_id]
     )[0]
-    logger.info(f"Got department folder {department_folder['Name']}")
-    logger.debug(department_folder)
-    if department_folder["ChildFolders"]:
-        # ! probably has the same problem as above
-        course_folders = SessionManagement.service.GetFoldersById(
+    logger.info(f"Got department folder {folder['Name']}")
+    logger.debug(folder)
+    if folder["ChildFolders"]:
+        # ! may run into the same problem as above if there are too many
+        child_folders = SessionManagement.service.GetFoldersById(
             auth=AuthenticationInfo,
-            folderIds={"guid": department_folder["ChildFolders"]["guid"]},
+            folderIds={"guid": folder["ChildFolders"]["guid"]},
         )
-        logger.info(
-            f"Got {len(course_folders)} children of {department_folder['Name']}"
-        )
-        for course_folder in course_folders:
-            copy_folder_groups(course_folder["Id"])
+        logger.info(f"Got {len(child_folders)} children of {folder['Name']}")
+        for child in child_folders:
+            course_folder(child["Id"])
+
+
+def term_folder(folder_id):
+    folder = SessionManagement.service.GetFoldersById(
+        auth=AuthenticationInfo,
+        folderIds=[folder_id],
+    )[0]
+    logger.info(
+        f"Got term folder {folder['Name']}, number of children: {len(folder['ChildFolders']['guid'])}"
+    )
+    logger.debug(folder)
+    for folder_id in folder["ChildFolders"]["guid"]:
+        dept_folder(folder_id)
+
+
+def main(args):
+    # execute starting at whatever level was specified
+    globals()[f"{args.folder_type}_folder"](args.folder_id)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Copy Moodle course user groups to internal ones. If given a term or department folder, this will traverse the folder hierarchy and copy all groups in descendent course folders."
+    )
+    # work at three levels: term ("2021SP"), department ("ANIMA"), course ("ANIMA-101-01")
+    parser.add_argument(
+        "folder_type",
+        choices=["term", "dept", "course"],
+        default="term",
+        help="starting folder type (defaults to term)",
+        nargs="?",
+    )
+    parser.add_argument(
+        "folder_id",
+        type=str,
+        default=config["FOLDER"],
+        help="folder ID (defaults to FOLDER in .env)",
+        nargs="?",
+    )
+    parser.add_argument(
+        "-n", "--dry-run", action="store_true", help="do not create groups"
+    )
+    global args
+    args = parser.parse_args()
+    if args.dry_run:
+        logger.warning("Dry run, no groups will be created")
+    main(args)
