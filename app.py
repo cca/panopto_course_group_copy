@@ -33,29 +33,6 @@ def generateauthcode(userkey, servername, sharedSecret):
     return authcode
 
 
-# TODO doing all this initialization here makes running just the argparse
-# TODO --help take a long time, maybe move it into main()?
-# initialize SOAP clients
-AccessManagement = Client(
-    f'https://{config["HOST"]}/Panopto/PublicAPI/4.6/AccessManagement.svc?wsdl'
-)
-SessionManagement = Client(
-    f'https://{config["HOST"]}/Panopto/PublicAPI/4.6/SessionManagement.svc?wsdl'
-)
-UserManagement = Client(
-    f'https://{config["HOST"]}/Panopto/PublicAPI/4.6/UserManagement.svc?wsdl'
-)
-
-# generate authcode and add to AuthenticationInfo object
-authcode = generateauthcode(
-    f"{config['IDP']}\\{config['USERNAME']}", config["HOST"], config["APP_KEY"]
-)
-AuthenticationInfo = {
-    "AuthCode": authcode,
-    "UserKey": f"{config['IDP']}\\{config['USERNAME']}",
-}
-
-
 def create_group(group):
     # note: cannot create two internal groups with the same name
     # which will be a good sanity check for this script
@@ -189,8 +166,32 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n", "--dry-run", action="store_true", help="do not create groups"
     )
+
     global args
     args = parser.parse_args()
+
     if args.dry_run:
         logger.warning("Dry run, no groups will be created")
+
+    # if we got this far, there wasn't a --help flag, initialize SOAP clients
+    global AccessManagement, SessionManagement, UserManagement, AuthenticationInfo
+    # initialize SOAP clients
+    AccessManagement = Client(
+        f'https://{config["HOST"]}/Panopto/PublicAPI/4.6/AccessManagement.svc?wsdl'
+    )
+    SessionManagement = Client(
+        f'https://{config["HOST"]}/Panopto/PublicAPI/4.6/SessionManagement.svc?wsdl'
+    )
+    UserManagement = Client(
+        f'https://{config["HOST"]}/Panopto/PublicAPI/4.6/UserManagement.svc?wsdl'
+    )
+
+    # generate authcode and add to AuthenticationInfo object
+    authcode = generateauthcode(
+        f"{config['IDP']}\\{config['USERNAME']}", config["HOST"], config["APP_KEY"]
+    )
+    AuthenticationInfo = {
+        "AuthCode": authcode,
+        "UserKey": f"{config['IDP']}\\{config['USERNAME']}",
+    }
     main(args)
