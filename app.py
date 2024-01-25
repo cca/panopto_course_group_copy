@@ -56,11 +56,14 @@ def copy_group(group_id, folder_id, role):
     group = UserManagement.service.GetGroup(auth=AuthenticationInfo, groupId=group_id)
     logger.info(f"Got group {group['Name']}")
     logger.debug(group)
-    # For course folder groups from Moodle
-    # MembershipProviderName = moodle-production & GroupType = External
-    # TODO provider name should be another config option
-    if group["MembershipProviderName"] == "moodle-production":
-        # get group members, this is eitehr None or actual list not {"guid": []}
+    # Only copy course folder groups
+    provider = config.get("PROVIDER", True)
+    if (
+        group["GroupType"] == "External"
+        and group["MembershipProviderName"] == provider
+        or provider
+    ):
+        # get group members, this is either None or actual list not {"guid": []}
         group_members = UserManagement.service.GetUsersInGroup(
             auth=AuthenticationInfo, groupId=group_id
         )
