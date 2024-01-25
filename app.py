@@ -34,19 +34,18 @@ def generateauthcode(userkey, servername, sharedSecret):
 
 
 def create_group(group):
-    # note: cannot create two internal groups with the same name
-    # which will be a good sanity check for this script
+    # NOTE: cannot create two internal groups with the same name
+    # which is a good sanity check for this script
+    name = f"{group['Name']} (internal)"
     if args.dry_run:
-        logger.info(
-            f"Would create group {group['Name']} with members {group['MemberIds']}"
-        )
+        logger.info(f"Would create group {name} with members {group['MemberIds']}")
         return group
     group = UserManagement.service.CreateInternalGroup(
         auth=AuthenticationInfo,
-        groupName=group["Name"],
+        groupName=name,
         memberIds={"guid": group["MemberIds"]},
     )
-    logger.info(f"Created group {group['Name']}")
+    logger.info(f"Created group {name}")
     logger.debug(group)
     return group
 
