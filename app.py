@@ -1,4 +1,5 @@
 import argparse
+from datetime import date
 import hashlib
 import logging
 import os
@@ -21,6 +22,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(config.get("LOGLEVEL", "INFO"))
 # log to stdout
 handler = logging.StreamHandler()
+logger.addHandler(handler)
+# and to file dated today
+handler = logging.FileHandler(f"{date.today().isoformat()}.log")
 logger.addHandler(handler)
 
 
@@ -66,16 +70,8 @@ def create_group(group):
             memberIds={"guid": group["MemberIds"]},
         )
     except Fault as e:
-        logger.error(f"Could not create group {name}")
-        logger.error(
-            f"""Error details
-code: {e.code}
-message: {e.message}
-actor: {e.actor}
-detail: {e.detail}
-subcodes: {e.subcodes}
-"""
-        )
+        # rest of the exception properties are not useful
+        logger.error(f"Error: {e.message}")
         return None
 
     logger.info(f"Created group {name}")
