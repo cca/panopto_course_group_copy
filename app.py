@@ -2,10 +2,10 @@ import argparse
 import hashlib
 import logging
 import os
-import sys
 
 from dotenv import dotenv_values
 from zeep import Client  # other SOAP clients like pysimplesoap have not worked
+from zeep.exceptions import Fault
 
 # stop the annoying "Forcing soap:address location to HTTPS" from zeep logs
 logging.getLogger("zeep").setLevel(logging.ERROR)
@@ -33,6 +33,23 @@ def generateauthcode(userkey, servername, sharedSecret):
     return authcode
 
 
+def add_group_to_folder(group, folder_id, role):
+    # add internal group to course folder
+    if args.dry_run:
+        return logger.info(
+            f"Would add group {group['Name']} to course folder with role {role}"
+        )
+
+    AccessManagement.service.GrantGroupAccessToFolder(
+        auth=AuthenticationInfo,
+        folderId=folder_id,
+        groupId=group["Id"],
+        # roles are strings: Creator, Viewer, ViewerWithLink, Publisher
+        role=role,
+    )
+    logger.info(f"Added group {group['Name']} to course folder")
+
+
 def create_group(group):
     # NOTE: cannot create two internal groups with the same name
     # which is a good sanity check for this script
@@ -40,11 +57,26 @@ def create_group(group):
     if args.dry_run:
         logger.info(f"Would create group {name} with members {group['MemberIds']}")
         return group
-    group = UserManagement.service.CreateInternalGroup(
-        auth=AuthenticationInfo,
-        groupName=name,
-        memberIds={"guid": group["MemberIds"]},
-    )
+
+    try:
+        group = UserManagement.service.CreateInternalGroup(
+            auth=AuthenticationInfo,
+            groupName=name,
+            memberIds={"guid": group["MemberIds"]},
+        )
+    except Fault as e:
+        logger.error(f"Could not create group {name}")
+        logger.error(
+            f"""Error details
+code: {e.code}
+message: {e.message}
+actor: {e.actor}
+detail: {e.detail}
+subcodes: {e.subcodes}
+"""
+        )
+        return None
+
     logger.info(f"Created group {name}")
     logger.debug(group)
     return group
@@ -76,20 +108,8 @@ def copy_group(group_id, folder_id, role):
                 }
             )
 
-            # add internal group to course folder
-            if args.dry_run:
-                logger.info(
-                    f"Would add group {group['Name']} to course folder with role {role}"
-                )
-                return
-            AccessManagement.service.GrantGroupAccessToFolder(
-                auth=AuthenticationInfo,
-                folderId=folder_id,
-                groupId=internal_group["Id"],
-                # roles are strings: Creator, Viewer, ViewerWithLink, Publisher
-                role=role,
-            )
-            logger.info(f"Added group {group['Name']} to course folder")
+            if internal_group:
+                add_group_to_folder(internal_group, folder_id, role)
 
 
 def course_folder(folder_id):
