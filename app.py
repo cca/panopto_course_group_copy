@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import logging
 import os
+import re
 
 from dotenv import dotenv_values
 from zeep import Client  # other SOAP clients like pysimplesoap have not worked
@@ -91,8 +92,8 @@ def copy_group(group_id, folder_id, role):
     provider = config.get("PROVIDER", True)
     if (
         group["GroupType"] == "External"
-        and group["MembershipProviderName"] == provider
-        or provider
+        and (group["MembershipProviderName"] == provider or provider)
+        and (args.filter is None or args.filter.search(group["Name"]))
     ):
         # get group members, this is either None or actual list not {"guid": []}
         group_members = UserManagement.service.GetUsersInGroup(
@@ -183,6 +184,12 @@ if __name__ == "__main__":
         type=str,
         default=config["FOLDER"],
         help="folder ID (defaults to FOLDER in .env)",
+        nargs="?",
+    )
+    parser.add_argument(
+        "--filter",
+        type=re.compile,
+        help="regex filter for group names to include (e.g. for the semester parenthetical)",
         nargs="?",
     )
     parser.add_argument(
