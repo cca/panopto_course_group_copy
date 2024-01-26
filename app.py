@@ -52,7 +52,7 @@ def add_group_to_folder(group, folder_id, role):
         # roles are strings: Creator, Viewer, ViewerWithLink, Publisher
         role=role,
     )
-    logger.info(f"Added group {group['Name']} to course folder")
+    logger.info(f"Gave group {group['Name']} {role} access to course folder")
 
 
 def create_group(group):
@@ -110,19 +110,32 @@ def copy_group(group_id, folder_id, role):
 
 
 def course_folder(folder_id):
-    access_details = AccessManagement.service.GetFolderAccessDetails(
+    ad = AccessManagement.service.GetFolderAccessDetails(
         auth=AuthenticationInfo, folderId=folder_id
     )
     logger.info(f"Got access details for course folder")
-    logger.debug(access_details)
+    logger.debug(ad)
 
-    if access_details["GroupsWithCreatorAccess"]:
-        for group_id in access_details["GroupsWithCreatorAccess"]["guid"]:
-            copy_group(group_id, folder_id, "Creator")
+    # sometimes Creator group also has Viewer access which is redundant
+    # and causes an error when trying to add the group to the folder
+    # here we remove any Creator group from the Viewer list
+    viewer_groups = (
+        set(ad["GroupsWithViewerAccess"]["guid"])
+        if ad["GroupsWithViewerAccess"]
+        else set()
+    )
+    creator_groups = (
+        set(ad["GroupsWithCreatorAccess"]["guid"])
+        if ad["GroupsWithCreatorAccess"]
+        else set()
+    )
+    viewer_groups = viewer_groups - creator_groups
 
-    if access_details["GroupsWithViewerAccess"]:
-        for group_id in access_details["GroupsWithViewerAccess"]["guid"]:
-            copy_group(group_id, folder_id, "Viewer")
+    for group_id in creator_groups:
+        copy_group(group_id, folder_id, "Creator")
+
+    for group_id in viewer_groups:
+        copy_group(group_id, folder_id, "Viewer")
 
 
 def dept_folder(folder_id):
