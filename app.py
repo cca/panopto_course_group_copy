@@ -55,10 +55,13 @@ def add_group_to_folder(group, folder_id, role):
     logger.info(f"Gave group {group['Name']} {role} access to course folder")
 
 
-def create_group(group):
-    # NOTE: cannot create two internal groups with the same name
-    # which is a good sanity check for this script
-    name = f"{group['Name']} (internal)"
+def create_group(group, folder_id=""):
+    # NOTE: cannot create two internal groups with the same name, good sanity check
+    # Append a short hash of group & folder UUID to make them unique per folder
+    # see: https://github.com/cca/panopto_course_group_copy/issues/3
+    hash = hashlib.sha1(f"{group['Name']}{folder_id}".encode()).hexdigest()[:6]
+    name = f"{group['Name']} (internal {hash})"
+
     if args.dry_run:
         logger.info(f"Would create group {name} with members {group['MemberIds']}")
         return group
@@ -71,7 +74,9 @@ def create_group(group):
         )
     except Fault as e:
         # rest of the exception properties are not useful
-        logger.error(f"Error: {e.message}")
+        logger.error(
+            f"Error creating group {group['Name']} on folder {folder_id}:\n{e.message}"
+        )
         return None
 
     logger.info(f"Created group {name}")
@@ -102,7 +107,8 @@ def copy_group(group_id, folder_id, role):
                 {
                     "Name": group["Name"],
                     "MemberIds": group_members,
-                }
+                },
+                folder_id,
             )
 
             if internal_group:

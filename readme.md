@@ -1,10 +1,12 @@
 # Panopto Course Group Copy
 
-When we delete a course in Moodle, we lose the Panopto groups associated with it. This script copies the Panopto course group to a new, internal group with the same membership to ensure faculty and students retain access to videos in their course folders after course deletion. See [my forum post](https://community.panopto.com/discussion/2203/copying-lms-groups-to-internal-ones#latest) for some details and advice from Panopto support. While the script could easily be adapted for other use cases, right now it is tightly coupled to this particular one. For instance, the script assumes:
+When we delete a course in Moodle, we lose the Panopto groups associated with it. This script copies the Panopto course group to a new, internal group with the same membership to ensure faculty and students retain access to videos in their course folders after course deletion. See [my forum post](https://community.panopto.com/discussion/2203/copying-lms-groups-to-internal-ones#latest) for some details and advice from Panopto support. While the script could be adapted to other use cases, it is tightly coupled to this particular one. For instance, the script assumes:
 
 - the root folder is a semester
 - the course folders are the root's grandchildren
 - Publisher groups aren't needed (thus not copied) because we don't use them
+
+Copied groups have the name of the original group plus a postfix like "(internal abc123)" where abc123 is a hash, e.g. "ANIMA-2100-1-2023SP: Visual Storytelling (2023SP)::Creator (internal 123456)".
 
 ## Setup
 
@@ -24,14 +26,14 @@ Find ID of the _semester_ folder in Panopto (browse to the folder and look at th
 # you can also specify ROOT_FOLDER in .env
 pipenv run python app.py term ROOT_FOLDER_ID
 # often course folders will include Moodle groups from other semesters, use a filter to skip them
-pipenv run python app.py term ROOT_FOLDER --filter "2021SP"
+pipenv run python app.py term ROOT_FOLDER --filter "\(2021SP\)"
 ```
 
 This iterates over all the grandchild course folders and copies their creator and access groups to internal groups. The `LOGLEVEL` config/env var can be set to `DEBUG` to see the objects returned by the Panopto SOAP API.
 
 ## Testing
 
-There is a [Panopto Group Copy Test](https://moodle.cca.edu/course/management.php?categoryid=1514) course category with a corresponding [folder hierarchy in Panopto](https://ccarts.hosted.panopto.com/Panopto/Pages/Sessions/List.aspx#folderID=%2264456041-2dd0-4c27-9d6c-b1020149a856%22) meant for testing this app. If you search our Panopto groups for ["pano-test-"](https://ccarts.hosted.panopto.com/Panopto/Pages/Admin/Groups/List.aspx#query=%22pano-test%22&roleIds=%5B%5D) it should return the test groups and you can delete all the internal ones to start over. For the `--filter` flag, here's a good test that creates some groups and skips others:
+There is a [Panopto Group Copy Test](https://moodle.cca.edu/course/management.php?categoryid=1514) course category with a corresponding [folder hierarchy in Panopto](https://ccarts.hosted.panopto.com/Panopto/Pages/Sessions/List.aspx#folderID=%2264456041-2dd0-4c27-9d6c-b1020149a856%22) meant for testing this app. Sharing is configured to test issues like [#3](https://github.com/cca/panopto_course_group_copy/issues/3). If you search our Panopto groups for ["pano-test-"](https://ccarts.hosted.panopto.com/Panopto/Pages/Admin/Groups/List.aspx#query=%22pano-test%22&roleIds=%5B%5D) it should return the test groups and you can delete all the internal ones to start over. For the `--filter` flag, here's a good test that creates some groups and skips others:
 
 ```sh
 python app.py term 64456041-2dd0-4c27-9d6c-b1020149a856 --filter "pano-test-1"
