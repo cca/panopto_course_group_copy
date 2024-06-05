@@ -56,9 +56,9 @@ def add_group_to_folder(group, folder_id, role):
 
 
 def create_group(group, folder_id=""):
-    # NOTE: cannot create two internal groups with the same name, good sanity check
-    # Append a short hash of group & folder UUID to make them unique per folder
-    # see: https://github.com/cca/panopto_course_group_copy/issues/3
+    # ! Cannot create two internal groups with the same name, good sanity check
+    # ! append a short hash of group & folder UUID to make them unique per folder
+    # https://github.com/cca/panopto_course_group_copy/issues/3
     hash = hashlib.sha1(f"{group['Name']}{folder_id}".encode()).hexdigest()[:6]
     name = f"{group['Name']} (internal {hash})"
 
