@@ -1,7 +1,6 @@
 import argparse
 from datetime import date
 import hashlib
-from itertools import batched
 import logging
 import os
 import re

@@ -11,6 +11,5 @@ python-dotenv = "1.0.1"
 [dev-packages]
 
 [requires]
-# 3.1 needed for itertools.batched
 python_version = "3.12"
 python_full_version = "3.12.3"
