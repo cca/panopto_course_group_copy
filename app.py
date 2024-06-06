@@ -1,6 +1,7 @@
 import argparse
 from datetime import date
 import hashlib
+from itertools import batched
 import logging
 import os
 import re
@@ -154,13 +155,15 @@ def dept_folder(folder_id):
     logger.info(f"Got department folder {folder['Name']}")
     logger.debug(folder)
     if folder["ChildFolders"]:
-        # ! may run into the same problem as above if there are too many
-        child_folders = SessionManagement.service.GetFoldersById(
-            auth=AuthenticationInfo,
-            folderIds={"guid": folder["ChildFolders"]["guid"]},
-        )
-        logger.info(f"Got {len(child_folders)} children of {folder['Name']}")
-        for child in child_folders:
+        logger.info(f"Number of children: {len(folder['ChildFolders']['guid'])}")
+        # ! As with above, requesting too many folders at once causes an error in Zeep
+        # ! https://github.com/cca/panopto_course_group_copy/issues/4
+        for child_guid in folder["ChildFolders"]["guid"]:
+            child = SessionManagement.service.GetFoldersById(
+                auth=AuthenticationInfo,
+                folderIds=[child_guid],
+            )[0]
+            logger.info(f"Got {child['Name']} child of {folder['Name']}")
             course_folder(child["Id"])
 
 
