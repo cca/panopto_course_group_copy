@@ -11,7 +11,7 @@ Copied groups have the name of the original group plus a postfix like "(internal
 ## Setup
 
 ```sh
-pipenv install
+uv sync
 cp example.env .env
 $EDITOR .env # fill in values
 ```
@@ -24,9 +24,9 @@ Find ID of the _semester_ folder in Panopto (browse to the folder and look at th
 
 ```sh
 # you can also specify ROOT_FOLDER in .env
-pipenv run python app.py term ROOT_FOLDER_ID
+uv run python app.py term ROOT_FOLDER_ID
 # often course folders will include Moodle groups from other semesters, use a filter to skip them
-pipenv run python app.py term ROOT_FOLDER --filter "\(2021SP\)"
+uv run python app.py term ROOT_FOLDER --filter "\(2021SP\)"
 ```
 
 This iterates over all the grandchild course folders and copies their creator and access groups to internal groups. The `LOGLEVEL` config/env var can be set to `DEBUG` to see the objects returned by the Panopto SOAP API.

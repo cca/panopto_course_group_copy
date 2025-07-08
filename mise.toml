@@ -1,0 +1,4 @@
+[env]
+UV_PYTHON = "3.12"
+[tools]
+python = "3.12"
